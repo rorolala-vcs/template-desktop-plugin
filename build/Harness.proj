@@ -1,0 +1,236 @@
+<Project DefaultTargets="Build">
+
+  <!--
+    The toolchain behind `build.sh` and `build.ps1`. `Build` publishes the Desktop program from the
+    vendored sources and lays the plugin, and the vendored plugins `Plugins.props` names, beside it
+    under `run/`. `Run` starts that program. The program is given a data directory of its own under
+    `.harness/`, so a run of the harness never touches the Desktop a user has installed.
+  -->
+
+  <Import Project="$(MSBuildThisFileDirectory)Plugins.props" />
+
+  <PropertyGroup>
+    <Root>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</Root>
+
+    <SourceDir Condition="'$(SourceDir)' == ''">$(Root)/ExamplePlugin/vendor/rorolala-vcs</SourceDir>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <UserDataName Condition="'$(UserDataName)' == ''">rorolala-template</UserDataName>
+
+    <HarnessDir>$(Root)/.harness</HarnessDir>
+    <StageDir>$(HarnessDir)/stage</StageDir>
+    <DataHome>$(HarnessDir)/data</DataHome>
+    <RunDir>$(Root)/run</RunDir>
+    <PluginsDir>$(RunDir)/plugins</PluginsDir>
+    <PublishDir>$(Root)/publish</PublishDir>
+
+    <PluginName>ExamplePlugin</PluginName>
+    <PluginId>rorolala.example</PluginId>
+    <PluginProject>$(Root)/ExamplePlugin/ExamplePlugin.csproj</PluginProject>
+    <DesktopProject>$(SourceDir)/app/desktop/Core/RorolalaDesktop.csproj</DesktopProject>
+
+    <FontCommit>ffebf8c1ee449e544955a7e813c54f9b73848eac</FontCommit>
+    <FontDir>$(SourceDir)/THIRD_PARTY/Fonts/NotoSans</FontDir>
+    <FontBase>https://raw.githubusercontent.com/notofonts/noto-fonts/$(FontCommit)/hinted/ttf/NotoSans</FontBase>
+    <IconPath>$(SourceDir)/res/icons/yizi.ico</IconPath>
+    <ExeSuffix Condition="'$(OS)' == 'Windows_NT'">.exe</ExeSuffix>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The vendored plugins the switches in `Plugins.props` add. -->
+    <VendoredPlugin Include="GitVCSPlugin" Condition="'$(WithGit)' == 'true'" />
+    <VendoredPlugin Include="RorolalaVCSPlugin" Condition="'$(WithVcs)' == 'true'" />
+    <VendoredPlugin Include="FileSystemPlugin" Condition="'$(WithFileSystem)' == 'true'" />
+    <VendoredPlugin Include="TerminalPlugin" Condition="'$(WithTerminal)' == 'true'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The order the run starts the plugins in, dependencies first, this plugin last. -->
+    <ConfiguredPlugin Include="rorolala.file_system" Condition="'$(WithFileSystem)' == 'true'" />
+    <ConfiguredPlugin Include="rorolala.git" Condition="'$(WithGit)' == 'true'" />
+    <ConfiguredPlugin Include="rorolala.vcs" Condition="'$(WithVcs)' == 'true'" />
+    <ConfiguredPlugin Include="rorolala.terminal" Condition="'$(WithTerminal)' == 'true'" />
+    <ConfiguredPlugin Include="$(PluginId)" />
+  </ItemGroup>
+
+  <Target Name="FetchPrerequisites">
+    <!--
+      What the Desktop program reads from the tree rather than from a package: the Noto Sans files it
+      is drawn in, and the window icon its project names. Both are drawn or fetched by `cargo dev` in
+      a checkout, and neither is committed, so a fetched archive lacks them until they are fetched
+      here. Any icon is enough; the font is what the program is drawn in.
+    -->
+    <MakeDir Directories="$(FontDir);$(SourceDir)/res/icons;$(HarnessDir)" />
+    <DownloadFile
+            Condition="!Exists('$(FontDir)/NotoSans-Regular.ttf')"
+            SourceUrl="$(FontBase)/NotoSans-Regular.ttf"
+            DestinationFolder="$(FontDir)"
+        />
+    <DownloadFile
+            Condition="!Exists('$(FontDir)/NotoSans-Italic.ttf')"
+            SourceUrl="$(FontBase)/NotoSans-Italic.ttf"
+            DestinationFolder="$(FontDir)"
+        />
+    <DownloadFile
+            Condition="!Exists('$(FontDir)/NotoSans-SemiBold.ttf')"
+            SourceUrl="$(FontBase)/NotoSans-SemiBold.ttf"
+            DestinationFolder="$(FontDir)"
+        />
+    <DownloadFile
+            Condition="!Exists('$(FontDir)/NotoSans-Bold.ttf')"
+            SourceUrl="$(FontBase)/NotoSans-Bold.ttf"
+            DestinationFolder="$(FontDir)"
+        />
+    <DownloadFile
+            Condition="!Exists('$(FontDir)/NotoSans-ExtraBold.ttf')"
+            SourceUrl="$(FontBase)/NotoSans-ExtraBold.ttf"
+            DestinationFolder="$(FontDir)"
+        />
+    <DownloadFile
+            Condition="!Exists('$(FontDir)/NotoSans-BoldItalic.ttf')"
+            SourceUrl="$(FontBase)/NotoSans-BoldItalic.ttf"
+            DestinationFolder="$(FontDir)"
+        />
+    <DownloadFile
+            Condition="!Exists('$(FontDir)/LICENSE')"
+            SourceUrl="https://raw.githubusercontent.com/notofonts/noto-fonts/$(FontCommit)/LICENSE"
+            DestinationFolder="$(FontDir)"
+        />
+    <Copy
+            Condition="!Exists('$(IconPath)')"
+            SourceFiles="$(MSBuildThisFileDirectory)desk.ico"
+            DestinationFiles="$(IconPath)"
+        />
+  </Target>
+
+  <Target Name="PublishDesktop" DependsOnTargets="FetchPrerequisites">
+    <!--
+      `dotnet publish` rather than the `MSBuild` task: the command restores in a pass of its own, and
+      an in-process `Restore` followed by `Publish` leaves the Avalonia source generator out of the
+      compile.
+    -->
+    <Exec
+            Command="dotnet publish &quot;$(DesktopProject)&quot; -c $(Configuration) -p:RolaUserDataName=$(UserDataName) -p:CopyLocalLockFileAssemblies=true -o &quot;$(RunDir)&quot;"
+            WorkingDirectory="$(Root)"
+        />
+  </Target>
+
+  <Target Name="CollectVendoredPlugins">
+    <ItemGroup>
+      <VendoredPluginProject
+              Include="@(VendoredPlugin->'$(SourceDir)/app/desktop/Plugins/%(Identity)/%(Identity).csproj')"
+          />
+    </ItemGroup>
+    <RemoveDuplicates Inputs="@(VendoredPluginProject)">
+      <Output TaskParameter="Filtered" ItemName="VendoredInclude" />
+    </RemoveDuplicates>
+  </Target>
+
+  <Target Name="PrepareStage">
+    <RemoveDir Directories="$(StageDir)" />
+    <MakeDir Directories="$(StageDir)" />
+  </Target>
+
+  <!--
+    Each project is published into a directory of its own. Only the assemblies and translations are
+    laid beside the program afterwards: the contract, Avalonia and the other plugins are what the
+    program already carries, and a second of each would be a second type of the same name.
+  -->
+  <Target Name="PublishVendoredPlugins" DependsOnTargets="PrepareStage;CollectVendoredPlugins">
+    <Exec
+            Command="dotnet publish &quot;%(VendoredInclude.FullPath)&quot; -c $(Configuration) -p:RolaUserDataName=$(UserDataName) -p:ErrorOnDuplicatePublishOutputFiles=false -o &quot;$(StageDir)/%(VendoredInclude.Filename)&quot;"
+            WorkingDirectory="$(Root)"
+        />
+  </Target>
+
+  <Target Name="PublishOwnPlugin" DependsOnTargets="PrepareStage">
+    <Exec
+            Command="dotnet publish &quot;$(PluginProject)&quot; -c $(Configuration) -p:RolaUserDataName=$(UserDataName) -p:ErrorOnDuplicatePublishOutputFiles=false -o &quot;$(StageDir)/$(PluginName)&quot;"
+            WorkingDirectory="$(Root)"
+        />
+  </Target>
+
+  <Target Name="PublishPlugins" DependsOnTargets="PublishVendoredPlugins;PublishOwnPlugin" />
+
+  <Target Name="LayPlugins" DependsOnTargets="PublishPlugins">
+    <RemoveDir Directories="$(PluginsDir)" />
+    <MakeDir Directories="$(PluginsDir)" />
+    <ItemGroup>
+      <StagedDll Include="$(StageDir)/**/*.dll" />
+    </ItemGroup>
+    <ItemGroup Condition="'@(VendoredPlugin)' != ''">
+      <PluginI18n Include="$(SourceDir)/app/desktop/Plugins/%(VendoredPlugin.Identity)/i18n/**/*" />
+    </ItemGroup>
+    <ItemGroup>
+      <!--
+        The translations are taken from the source rather than from the published output: an SDK
+        older than the one this was written against lays the files at the output's root, where two
+        plugins' `strings.yml` collide. The source keeps the namespace directory each file sits in.
+      -->
+      <PluginI18n Include="$(Root)/ExamplePlugin/i18n/**/*" />
+    </ItemGroup>
+    <Copy
+            SourceFiles="@(StagedDll)"
+            DestinationFolder="$(PluginsDir)"
+            SkipUnchangedFiles="true"
+            Condition="!Exists('$(RunDir)/%(StagedDll.Filename)%(StagedDll.Extension)')"
+        />
+    <Copy
+            SourceFiles="@(PluginI18n)"
+            DestinationFiles="@(PluginI18n->'$(PluginsDir)/i18n/$([System.IO.Path]::GetFileName($([System.IO.Path]::GetDirectoryName('%(FullPath)'))))/%(Filename)%(Extension)')"
+            SkipUnchangedFiles="true"
+        />
+
+    <!--
+      The plugin order the program starts with. It is written on every build so that turning a plugin
+      off in `Plugins.props` also takes it out of the configuration: the program refuses to start when
+      the file names a plugin that is not there.
+    -->
+    <PropertyGroup>
+      <PluginsJson>$(DataHome)/rola/$(UserDataName)/desktop/plugins.json</PluginsJson>
+      <PluginEntries>@(ConfiguredPlugin->'    { "id": "%(Identity)", "enabled": true }', ',&#x0A;')</PluginEntries>
+    </PropertyGroup>
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(PluginsJson)'))" />
+    <WriteLinesToFile
+            File="$(PluginsJson)"
+            Overwrite="true"
+            Lines="{&#x0A;  &quot;_version&quot;: 1,&#x0A;  &quot;plugins&quot;: [&#x0A;$(PluginEntries)&#x0A;  ]&#x0A;}"
+        />
+  </Target>
+
+  <Target Name="Build" DependsOnTargets="PublishDesktop;LayPlugins" />
+
+  <Target Name="Publish" DependsOnTargets="PublishOwnPlugin">
+    <RemoveDir Directories="$(PublishDir)" />
+    <MakeDir Directories="$(PublishDir)" />
+    <ItemGroup>
+      <OwnI18n Include="$(Root)/ExamplePlugin/i18n/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="$(StageDir)/$(PluginName)/$(PluginName).dll" DestinationFolder="$(PublishDir)" />
+    <Copy
+            SourceFiles="@(OwnI18n)"
+            DestinationFiles="@(OwnI18n->'$(PublishDir)/i18n/$([System.IO.Path]::GetFileName($([System.IO.Path]::GetDirectoryName('%(FullPath)'))))/%(Filename)%(Extension)')"
+        />
+  </Target>
+
+  <Target Name="Clean">
+    <RemoveDir
+            Directories="$(RunDir);$(PublishDir);$(HarnessDir);$(Root)/ExamplePlugin/bin;$(Root)/ExamplePlugin/obj;$(SourceDir)/.cache"
+        />
+  </Target>
+
+  <Target Name="Lint">
+    <Exec
+            Command="dotnet build &quot;$(Root)/ExamplePlugin.sln&quot; -c Debug -t:Rebuild -p:UseSharedCompilation=false"
+            WorkingDirectory="$(Root)"
+        />
+  </Target>
+
+  <Target Name="Run" DependsOnTargets="Build">
+    <Exec
+            Command="&quot;$(RunDir)/RorolalaDesktop$(ExeSuffix)&quot; -CurrentDir:&quot;$(Root)&quot;"
+            WorkingDirectory="$(Root)"
+            EnvironmentVariables="ROLA_DATA_HOME=$(DataHome)"
+        />
+  </Target>
+
+</Project>

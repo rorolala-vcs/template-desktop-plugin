@@ -1,0 +1,26 @@
+_version: 2
+
+# What the example plugin says. Every key is namespaced by the plugin's identity, the id with dots
+# underscored, which is the convention that keeps two plugins' keys apart. A plugin registers this
+# directory in `Initialize`, and the host reads it beside its own: a key the host already states is
+# not replaced.
+
+rorolala_example:
+  name:
+    en: Example
+    zh-CN: 示例
+  dock:
+    en: Example
+    zh-CN: 示例
+  command:
+    refresh:
+      en: Read the time again
+      zh-CN: 重新读取时间
+  view:
+    message:
+      en: This dock belongs to the example plugin. The clock says %{time}.
+      zh-CN: 这个面板属于示例插件。现在是 %{time}。
+  menu:
+    open:
+      en: Open in Example
+      zh-CN: 在示例中打开

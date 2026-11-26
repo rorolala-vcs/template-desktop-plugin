@@ -1,0 +1,19 @@
+<Project>
+
+  <!--
+    Which of the vendored Desktop plugins the toolchain brings along. Turn one on when this plugin
+    uses its types: the project then references it, and the toolchain builds it and lays it beside the
+    program, with the plugins it in turn depends on.
+
+    Every one of the four depends on the File System plugin, so turning on any of them without
+    `WithFileSystem` leaves it without its dependency, which the Plugin Manager reports.
+  -->
+
+  <PropertyGroup>
+    <WithGit>false</WithGit>
+    <WithVcs>false</WithVcs>
+    <WithFileSystem>false</WithFileSystem>
+    <WithTerminal>false</WithTerminal>
+  </PropertyGroup>
+
+</Project>

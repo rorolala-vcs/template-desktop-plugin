@@ -1,0 +1,18 @@
+# The rorolala sources the project fetches, which `README.md` lays beside `bin/` and `obj/`.
+vendor/
+
+# What a build writes.
+bin/
+obj/
+out/
+run/
+publish/
+.harness/
+
+# An editor's own files.
+.vs/
+*.user
+*.suo
+
+# Work in progress: a scratch file or a draft is named with a leading `__`.
+__*

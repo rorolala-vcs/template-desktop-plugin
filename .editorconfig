@@ -1,0 +1,31 @@
+# What `build.sh lint` makes of the plugin's code, and why.
+#
+# The lint target asks for the strictest tier the analyzers carry (`AnalysisMode=All`) and makes
+# every diagnostic an error. What that tier carries and a plugin does not fit is excused here, one
+# rule at a time, with the reason it is excused. Exempting a rule is not the same as not asking for
+# it, and this file says which and why.
+
+root = true
+
+[*]
+# One line ending and one final newline everywhere, so that a diff is about what changed.
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{sh,ps1}]
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.{cs,csx}]
+indent_style = space
+indent_size = 4
+
+# A type whose name repeats its namespace's: the plugin's type is named for the plugin and lives in
+# the namespace of the same name, as the host's own plugins are written, `TerminalPlugin.
+# TerminalPlugin`. The repetition is the convention rather than an accident.
+dotnet_diagnostic.CA1724.severity = none

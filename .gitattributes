@@ -1,0 +1,6 @@
+# One line ending everywhere: the toolchain has shell scripts, and a copy checked out on Windows must
+# still run them.
+* text=auto eol=lf
+
+*.ico binary
+*.png binary

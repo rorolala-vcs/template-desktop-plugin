@@ -1,0 +1,115 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A plugin is one assembly the Desktop discovers in the `plugins` directory beside its program. This
+    project lives outside the rorolala tree, so it states the standards the tree's
+    `Directory.Build.props` states for the projects inside it: the same target framework, the same
+    nullable and implicit usings, and a warning made an error wherever it is raised.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>ExamplePlugin</RootNamespace>
+    <AssemblyName>ExamplePlugin</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+    <!--
+      The lint's tier: every analyzer rule, and a diagnostic is an error through
+      `TreatWarningsAsErrors`. It is stated here rather than by the toolchain so that it is this
+      project the analyzers see, and not the vendored projects it references.
+    -->
+    <AnalysisMode>All</AnalysisMode>
+    <!--
+      The plugin is an assembly and its translations, and nothing reads a dependency file beside it:
+      the host's load context resolves Sight and the contract from the program's own directory. The
+      file is left out so that a publish stages exactly what is laid beside the program.
+    -->
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <!--
+      The rorolala sources the project compiles against, which `README.md` lays under the project's
+      own `vendor/`, beside the `bin/` and `obj/` a build writes. Name another directory on the
+      command line with `-p:RorolalaSource=<path>` to build against a checkout instead.
+    -->
+    <RorolalaSource
+            Condition="'$(RorolalaSource)' == ''"
+        >$(MSBuildThisFileDirectory)vendor/rorolala-vcs</RorolalaSource>
+    <!--
+      A solution build unsets the parent's configuration for a reference the solution does not
+      contain, which would build the vendored projects as Debug while this one is Release. Keeping
+      the parent's configuration makes one configuration the whole build's.
+    -->
+    <ShouldUnsetParentConfigurationAndPlatform
+        >false</ShouldUnsetParentConfigurationAndPlatform>
+  </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)../build/Plugins.props" />
+
+  <ItemGroup>
+    <!-- The vendored tree is referenced, not compiled: the default glob would gather its sources
+         into this project, since it sits under the project's own directory. -->
+    <Compile Remove="vendor/**/*.cs" />
+    <EmbeddedResource Remove="vendor/**/*" />
+    <None Remove="vendor/**/*" />
+    <!-- Avalonia's own targets add every `.axaml` and asset under the project by default. -->
+    <AvaloniaXaml Remove="vendor/**/*" />
+    <AvaloniaResource Remove="vendor/**/*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The toolkit the plugin draws with, at the version the host's own contract names. The load
+         context delegates Avalonia to the host's copy, so the version must be the same one. -->
+    <PackageReference Include="Avalonia" Version="12.1.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The contract and the translations are the host's own assemblies, which its load context
+         delegates to by name. `Private="false"` keeps them out of the build output: a copy beside the
+         plugin would be a second type of the same name that the host's tree cannot hold. -->
+    <ProjectReference
+            Include="$(RorolalaSource)/app/desktop/Contract/RorolalaDesktop.Contract.csproj"
+            Private="false"
+        />
+    <ProjectReference
+            Include="$(RorolalaSource)/utils/desktop-i18n/RorolalaDesktopI18n.csproj"
+            Private="false"
+        />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The vendored plugins this project may use, chosen in `build/Plugins.props`. The toolchain builds
+      each one and lays it beside the program, so the reference is compile-only here.
+    -->
+    <ProjectReference
+            Include="$(RorolalaSource)/app/desktop/Plugins/GitVCSPlugin/GitVCSPlugin.csproj"
+            Private="false"
+            Condition="'$(WithGit)' == 'true'"
+        />
+    <ProjectReference
+            Include="$(RorolalaSource)/app/desktop/Plugins/RorolalaVCSPlugin/RorolalaVCSPlugin.csproj"
+            Private="false"
+            Condition="'$(WithVcs)' == 'true'"
+        />
+    <ProjectReference
+            Include="$(RorolalaSource)/app/desktop/Plugins/FileSystemPlugin/FileSystemPlugin.csproj"
+            Private="false"
+            Condition="'$(WithFileSystem)' == 'true'"
+        />
+    <ProjectReference
+            Include="$(RorolalaSource)/app/desktop/Plugins/TerminalPlugin/TerminalPlugin.csproj"
+            Private="false"
+            Condition="'$(WithTerminal)' == 'true'"
+        />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The plugin's own words, laid beside its assembly so that the directory it registers in
+         `Initialize` is found the moment the host starts it. -->
+    <None Update="i18n/**/*.yml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
